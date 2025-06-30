@@ -2,7 +2,7 @@
 import CajasNavApp from './clientes/CajasNav/App';
 import ConsultorioApp from './clientes/Consultorio/App';
 
-const cliente = 'CajasNav'; // o 'Consultorio'
+const cliente = 'Consultorio'; // o 'Consultorio'
 
 export default function App() {
   if (cliente === 'CajasNav') return <CajasNavApp />;
