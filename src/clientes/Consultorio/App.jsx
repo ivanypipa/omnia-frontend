@@ -1,16 +1,16 @@
 // App.jsx
 
 import { useState, useEffect, useRef } from 'react';
-import { supabase } from '../../../supabaseClient';
+import { supabase } from '../../supabaseClient';
 
-const categorias = ['general', 'pedidos', 'quejas', 'facturas'];
+const categorias = ['general', 'turnos', 'recetas', 'preguntas'];
 
 function ChatList({ chats, mensajes, onSelectChat, activeId }) {
   const [filtros, setFiltros] = useState({
     general: '',
-    pedidos: '',
-    quejas: '',
-    facturas: '',
+    turnos: '',
+    recetas: '',
+    preguntas: '',
   });
 
   const handleFiltroChange = (cat, value) => {
@@ -20,15 +20,15 @@ function ChatList({ chats, mensajes, onSelectChat, activeId }) {
   return (
     <div className="flex h-full">
       {categorias.map((cat) => (
-        <div key={cat} className="w-[200px] min-w-[200px] border-r border-red-200">
-          <div className="h-12 flex items-center justify-center font-semibold text-sm text-white bg-red-700 border-b border-red-500 uppercase">
+        <div key={cat} className="w-[200px] min-w-[200px] border-r border-[#e0e0e0]">
+          <div className="h-12 flex items-center justify-center font-semibold text-sm text-gray-700 bg-[#e8f0fe] border-b border-[#e0e0e0] uppercase">
             {cat}
           </div>
           <div className="p-2">
             <input
               type="text"
               placeholder="Buscar..."
-              className="w-full px-2 py-1 bg-white shadow text-gray-800 border border-red-300 focus:outline-none focus:ring-2 focus:ring-green-600 rounded"
+              className="w-full px-2 py-1 bg-white shadow text-gray-800 border-gray-300"
               value={filtros[cat]}
               onChange={(e) => handleFiltroChange(cat, e.target.value)}
             />
@@ -49,26 +49,28 @@ function ChatList({ chats, mensajes, onSelectChat, activeId }) {
                   <li
                     key={chat.id}
                     onClick={() => onSelectChat(chat)}
-                    className={`flex items-center justify-between p-2 cursor-pointer border-b border-red-200 ${
-                      estaActivo ? 'bg-red-100' : 'bg-white'
+                    className={`flex items-center justify-between p-2 cursor-pointer border-b border-[#e0e0e0] ${
+                      estaActivo ? 'bg-blue-100' : 'bg-white'
                     }`}
                   >
-                    <div className="flex items-center overflow-hidden">
-                      <div className="w-9 h-9 rounded-full bg-green-200 mr-2 flex-shrink-0" />
-                      <div className="flex flex-col justify-center">
-                        <div className="font-semibold text-gray-800 truncate max-w-[120px]">
-                          {chat.nombre}
-                        </div>
-                        <div className="text-xs text-gray-500 truncate max-w-[140px]">
-                          {chat.ultimoMensaje || '\u00A0'}
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center overflow-hidden">
+                        <div className="w-9 h-9 min-w-[36px] min-h-[36px] rounded-full bg-gray-300 mr-2 flex-shrink-0" />
+                        <div className="flex flex-col justify-center">
+                          <div className="font-semibold text-gray-800 leading-tight truncate max-w-[120px]">
+                            {chat.nombre}
+                          </div>
+                          <div className="text-xs text-gray-500 min-h-[16px] truncate max-w-[140px]">
+                            {chat.ultimoMensaje || '\u00A0'}
+                          </div>
                         </div>
                       </div>
+                      {cantidadNoLeidos > 0 && (
+                        <span className="bg-red-500 text-white text-xs rounded-full px-2">
+                          {cantidadNoLeidos}
+                        </span>
+                      )}
                     </div>
-                    {cantidadNoLeidos > 0 && (
-                      <span className="bg-red-600 text-white text-xs rounded-full px-2">
-                        {cantidadNoLeidos}
-                      </span>
-                    )}
                   </li>
                 );
               })}
@@ -101,13 +103,14 @@ function ChatWindow({ chat, mensajes, onSendMessage, onChangeCategory, onRenameC
     }
   };
 
-  if (!chat) return <div className="flex-1 bg-green-50" />;
+  if (!chat) return <div className="flex-1 bg-[#f0f2f5]" />;
 
   return (
-    <div className="flex flex-col flex-1 h-screen bg-green-50">
-      <div className="h-12 bg-green-700 text-white font-semibold flex justify-between items-center px-4 border-b border-green-600">
+    <div className="flex flex-col flex-1 h-screen bg-[#f0f2f5]">
+      <div className="h-12 bg-[#e8f0fe] text-gray-800 font-semibold flex justify-between items-center px-4 border-b border-[#e0e0e0]">
         <span>{chat.nombre}</span>
         <div className="flex items-center space-x-2">
+          {/* Botón para renombrar */}
           <button
             onClick={handleRename}
             className="p-1 rounded bg-white hover:bg-gray-200 transition"
@@ -115,6 +118,8 @@ function ChatWindow({ chat, mensajes, onSendMessage, onChangeCategory, onRenameC
           >
             ✏️
           </button>
+
+          {/* Dropdown de categoría */}
           <select
             value={chat.categoria}
             onChange={(e) => onChangeCategory(e.target.value)}
@@ -126,16 +131,19 @@ function ChatWindow({ chat, mensajes, onSendMessage, onChangeCategory, onRenameC
               </option>
             ))}
           </select>
+
+          {/* Botón "Terminar conversación" solo si NO está en categoría "general" */}
           {chat.categoria?.toLowerCase() !== 'general' && (
             <button
               onClick={() => onChangeCategory('general')}
-              className="px-3 py-1 bg-red-700 text-white rounded text-sm hover:bg-red-800 transition"
+              className="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 transition"
             >
               Terminar conversación
             </button>
           )}
         </div>
       </div>
+
       <div className="flex-1 p-5 overflow-y-auto">
         {mensajes.map((msg, i) => {
           const hora = new Date(msg.timestamp).toLocaleTimeString('es-AR', {
@@ -148,32 +156,33 @@ function ChatWindow({ chat, mensajes, onSendMessage, onChangeCategory, onRenameC
               <div
                 className={`px-4 py-2 rounded-xl max-w-[70%] text-sm shadow ${
                   isSaliente
-                    ? 'bg-yellow-100 text-gray-800'
-                    : 'bg-white text-gray-900 border border-green-200'
+                    ? 'bg-[#d2e3fc] text-gray-800'
+                    : 'bg-white text-gray-900 border border-[#e0e0e0]'
                 }`}
               >
                 <div>{msg.texto}</div>
-                <div className="text-xs text-right text-gray-500 mt-1">{hora}</div>
+                <div className="text-xs text-right text-gray-400 mt-1">{hora}</div>
               </div>
             </div>
           );
         })}
         <div ref={chatEndRef} />
       </div>
+
       <form
         onSubmit={handleSubmit}
-        className="flex p-4 bg-white border-t border-green-200 items-center shadow"
+        className="flex p-4 bg-white border-t border-[#e0e0e0] items-center shadow"
       >
         <input
           type="text"
           value={nuevoMensaje}
           onChange={(e) => setNuevoMensaje(e.target.value)}
           placeholder="Escribí un mensaje..."
-          className="flex-1 px-4 py-2 rounded-full border bg-white shadow text-gray-800 border-gray-300 focus:outline-none focus:ring-2 focus:ring-red-600"
+          className="flex-1 px-4 py-2 rounded-full border bg-white shadow text-gray-800 border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
         />
         <button
           type="submit"
-          className="ml-3 px-5 py-2 rounded-full bg-red-700 text-white font-bold hover:bg-red-800 transition"
+          className="ml-3 px-5 py-2 rounded-full bg-blue-600 text-white font-bold hover:bg-blue-700 transition"
         >
           Enviar
         </button>
@@ -203,10 +212,13 @@ function App() {
   useEffect(() => {
     fetchChats();
     fetchMensajes();
+
+    // Cada 5 segundos, refrescar automáticamente
     const interval = setInterval(() => {
       fetchChats();
       fetchMensajes();
     }, 5000);
+
     return () => clearInterval(interval);
   }, []);
 
@@ -219,6 +231,7 @@ function App() {
       timestamp: new Date().toISOString(),
     };
     await supabase.from('mensajes').insert([nuevo]);
+    // Luego de enviar, recargamos para ver el mensaje y actualizar chats
     await fetchMensajes();
     await fetchChats();
   };
@@ -235,6 +248,7 @@ function App() {
     }
     await fetchChats();
     if (category === 'general') {
+      // Si paso a "general", limpiamos la selección de chat
       setChatSeleccionado(null);
     } else {
       setChatSeleccionado((prev) => (prev ? { ...prev, categoria: category } : null));
@@ -258,7 +272,7 @@ function App() {
   const mensajesDelChat = mensajes.filter((m) => m.chat_id === chatSeleccionado?.id);
 
   return (
-    <div className="flex h-screen w-screen font-sans">
+    <div className="flex h-screen w-screen font-sans bg-[#f0f2f5]">
       <ChatList
         chats={chats}
         mensajes={mensajes}
