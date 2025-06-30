@@ -1,13 +1,13 @@
 // src/App.jsx
-import CajasNavApp from './clientes/CajasNav/App';
-import ConsultorioApp from './clientes/Consultorio/App';
-
-const cliente = 'Consultorio'; // o 'Consultorio'
+import { useState } from 'react'
+import DevLogin from './DevLogin'
+import ClientLoader from './ClientLoader'
 
 export default function App() {
-  if (cliente === 'CajasNav') return <CajasNavApp />;
-  if (cliente === 'Consultorio') return <ConsultorioApp />;
-  return <div className="flex items-center justify-center h-screen text-gray-500">
-    Cliente no autorizado
-  </div>;
+  const [clientSlug, setClientSlug] = useState(null)
+
+  if (!clientSlug) {
+    return <DevLogin onLogin={setClientSlug} />
+  }
+  return <ClientLoader clientSlug={clientSlug} />
 }
