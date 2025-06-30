@@ -1,27 +1,30 @@
 // src/DevLogin.jsx
 import { useState, useMemo } from 'react'
 
-// 1) Auto-detectar carpetas dentro de /clientes
-const modules = import.meta.glob('./clientes/*/App.jsx')
-const slugs = useMemo(
-  () => Object.keys(modules)
-               .map(path => path.match(/clientes\/(.+)\/App\.jsx/)?.[1])
-               .filter(Boolean),
-  []
-)
-
 export default function DevLogin({ onLogin }) {
+  // 1) Detecta dinámicamente las carpetas
+  const modules = import.meta.glob('./clientes/*/App.jsx')
+
+  // 2) Construye la lista de slugs **dentro** del componente
+  const slugs = useMemo(() => {
+    return Object.keys(modules)
+      .map(path => {
+        const m = path.match(/clientes\/(.+)\/App\.jsx/)
+        return m ? m[1] : null
+      })
+      .filter(Boolean)
+  }, [modules])
+
   const [slug, setSlug] = useState(slugs[0] || '')
   const [pass, setPass] = useState('')
 
   const handleSubmit = e => {
     e.preventDefault()
-    // aquí podrías opcionalmente validar pass === '1234'
     onLogin(slug)
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ padding: 20 }}>
+    <form onSubmit={handleSubmit} style={{ padding: 20, color: '#fff' }}>
       <h2>Login de Desarrollo</h2>
       <label>
         Cliente:
@@ -33,7 +36,7 @@ export default function DevLogin({ onLogin }) {
       </label>
       <br/><br/>
       <label>
-        Contraseña (no válida realmente):
+        Contraseña (fake):
         <input
           type="password"
           value={pass}
@@ -45,3 +48,4 @@ export default function DevLogin({ onLogin }) {
     </form>
   )
 }
+
