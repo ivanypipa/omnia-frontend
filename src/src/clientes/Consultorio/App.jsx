@@ -1,7 +1,7 @@
 // App.jsx
 
 import { useState, useEffect, useRef } from 'react';
-import { supabase } from './supabaseClient';
+import { supabase } from '../../../supabaseClient';
 
 const categorias = ['general', 'turnos', 'recetas', 'preguntas'];
 
