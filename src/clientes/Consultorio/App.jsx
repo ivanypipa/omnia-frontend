@@ -4,13 +4,168 @@ import { supabase } from '../../supabaseClient';
 const EMPRESA = 'Consultorio';
 const categorias = ['general', 'pedidos', 'quejas', 'facturas'];
 
-// ... (igual que arriba, pero con EMPRESA='Consultorio')
 function ChatList({ chats, mensajes, onSelectChat, activeId }) {
-  // mismo código que en CajasNav
+  const [filtros, setFiltros] = useState(
+    categorias.reduce((acc, c) => ({ ...acc, [c]: '' }), {})
+  );
+
+  const handleFiltroChange = (cat, value) => {
+    setFiltros((prev) => ({ ...prev, [cat]: value }));
+  };
+
+  return (
+    <div className="flex h-full">
+      {categorias.map((cat) => (
+        <div key={cat} className="w-[200px] min-w-[200px] border-r border-blue-200">
+          <div className="h-12 flex items-center justify-center font-semibold text-sm text-white bg-blue-700 border-b border-blue-500 uppercase">
+            {cat}
+          </div>
+          <div className="p-2">
+            <input
+              type="text"
+              placeholder="Buscar..."
+              className="w-full px-2 py-1 bg-white shadow text-gray-800 border border-blue-300 focus:outline-none focus:ring-2 focus:ring-yellow-600 rounded"
+              value={filtros[cat]}
+              onChange={(e) => handleFiltroChange(cat, e.target.value)}
+            />
+          </div>
+          <ul className="list-none p-0 m-0">
+            {chats
+              .filter(
+                (c) =>
+                  (c.categoria || '').toLowerCase().trim() === cat &&
+                  c.nombre.toLowerCase().includes(filtros[cat].toLowerCase())
+              )
+              .map((chat) => {
+                const sinLeer = mensajes.filter(
+                  (m) => m.chat_id === chat.id && m.tipo === 'entrante' && !m.leido
+                ).length;
+                const activo = chat.id === activeId;
+                return (
+                  <li
+                    key={chat.id}
+                    onClick={() => onSelectChat(chat)}
+                    className={`flex items-center justify-between p-2 cursor-pointer border-b border-blue-200 ${
+                      activo ? 'bg-blue-100' : 'bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center overflow-hidden">
+                      <div className="w-9 h-9 rounded-full bg-yellow-200 mr-2 flex-shrink-0" />
+                      <div className="flex flex-col justify-center">
+                        <div className="font-semibold text-gray-800 truncate max-w-[120px]">
+                          {chat.nombre}
+                        </div>
+                        <div className="text-xs text-gray-500 truncate max-w-[140px]">
+                          {chat.ultimoMensaje || '\u00A0'}
+                        </div>
+                      </div>
+                    </div>
+                    {sinLeer > 0 && (
+                      <span className="bg-blue-600 text-white text-xs rounded-full px-2">
+                        {sinLeer}
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function ChatWindow({ chat, mensajes, onSendMessage, onChangeCategory, onRenameChat }) {
-  // mismo código que en CajasNav
+  const [nuevo, setNuevo] = useState('');
+  const endRef = useRef(null);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [mensajes]);
+
+  const submit = (e) => {
+    e.preventDefault();
+    if (!nuevo.trim()) return;
+    onSendMessage(nuevo);
+    setNuevo('');
+  };
+
+  if (!chat) return <div className="flex-1 bg-yellow-50" />;
+
+  return (
+    <div className="flex flex-col flex-1 h-screen bg-yellow-50">
+      <div className="h-12 bg-yellow-700 text-white font-semibold flex justify-between items-center px-4 border-b border-yellow-600">
+        <span>{chat.nombre}</span>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => {
+              const nn = prompt('Nuevo nombre:', chat.nombre);
+              if (nn && nn.trim() !== chat.nombre) onRenameChat(nn.trim());
+            }}
+            className="p-1 rounded bg-white hover:bg-gray-200 transition"
+            title="Cambiar nombre"
+          >
+            ✏️
+          </button>
+          <select
+            value={chat.categoria}
+            onChange={(e) => onChangeCategory(e.target.value)}
+            className="px-2 py-1 border rounded text-sm bg-white"
+          >
+            {categorias.map((c) => (
+              <option key={c} value={c}>
+                {c.charAt(0).toUpperCase() + c.slice(1)}
+              </option>
+            ))}
+          </select>
+          {chat.categoria !== 'general' && (
+            <button
+              onClick={() => onChangeCategory('general')}
+              className="px-3 py-1 bg-blue-700 text-white rounded text-sm hover:bg-blue-800 transition"
+            >
+              Terminar
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="flex-1 p-5 overflow-y-auto">
+        {mensajes.map((m, i) => {
+          const hora = new Date(m.timestamp).toLocaleTimeString('es-AR', {
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+          const sal = m.tipo === 'saliente';
+          return (
+            <div key={i} className={`flex ${sal ? 'justify-end' : 'justify-start'} mb-3`}>
+              <div
+                className={`px-4 py-2 rounded-xl max-w-[70%] text-sm shadow ${
+                  sal
+                    ? 'bg-green-100 text-gray-800'
+                    : 'bg-white text-gray-900 border border-yellow-200'
+                }`}
+              >
+                <div>{m.texto}</div>
+                <div className="text-xs text-right text-gray-500 mt-1">{hora}</div>
+              </div>
+            </div>
+          );
+        })}
+        <div ref={endRef} />
+      </div>
+      <form onSubmit={submit} className="flex p-4 bg-white border-t border-yellow-200 items-center shadow">
+        <input
+          type="text"
+          value={nuevo}
+          onChange={(e) => setNuevo(e.target.value)}
+          placeholder="Escribí un mensaje..."
+          className="flex-1 px-4 py-2 rounded-full border bg-white shadow text-gray-800 border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-600"
+        />
+        <button type="submit" className="ml-3 px-5 py-2 rounded-full bg-blue-700 text-white font-bold hover:bg-blue-800 transition">
+          Enviar
+        </button>
+      </form>
+    </div>
+  );
 }
 
 export default function App() {
@@ -18,6 +173,7 @@ export default function App() {
   const [mensajes, setMensajes] = useState([]);
   const [chatSel, setChatSel] = useState(null);
 
+  // Trae solo los chats de Consultorio
   const fetchChats = async () => {
     const { data, error } = await supabase
       .from('chats')
@@ -27,6 +183,7 @@ export default function App() {
     else setChats(data);
   };
 
+  // Trae solo los mensajes de Consultorio
   const fetchMensajes = async () => {
     const { data, error } = await supabase
       .from('mensajes')
@@ -79,12 +236,7 @@ export default function App() {
 
   return (
     <div className="flex h-screen w-screen font-sans">
-      <ChatList
-        chats={chats}
-        mensajes={mensajes}
-        onSelectChat={setChatSel}
-        activeId={chatSel?.id}
-      />
+      <ChatList chats={chats} mensajes={mensajes} onSelectChat={setChatSel} activeId={chatSel?.id} />
       <ChatWindow
         chat={chatSel}
         mensajes={mensajesDelChat}

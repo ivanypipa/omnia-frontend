@@ -173,7 +173,7 @@ export default function App() {
   const [mensajes, setMensajes] = useState([]);
   const [chatSel, setChatSel] = useState(null);
 
-  // traer solo los chats de CajasNav
+  // Trae solo los chats de CajasNav
   const fetchChats = async () => {
     const { data, error } = await supabase
       .from('chats')
@@ -183,7 +183,7 @@ export default function App() {
     else setChats(data);
   };
 
-  // traer solo los mensajes de CajasNav
+  // Trae solo los mensajes de CajasNav
   const fetchMensajes = async () => {
     const { data, error } = await supabase
       .from('mensajes')
@@ -236,12 +236,7 @@ export default function App() {
 
   return (
     <div className="flex h-screen w-screen font-sans">
-      <ChatList
-        chats={chats}
-        mensajes={mensajes}
-        onSelectChat={setChatSel}
-        activeId={chatSel?.id}
-      />
+      <ChatList chats={chats} mensajes={mensajes} onSelectChat={setChatSel} activeId={chatSel?.id} />
       <ChatWindow
         chat={chatSel}
         mensajes={mensajesDelChat}
