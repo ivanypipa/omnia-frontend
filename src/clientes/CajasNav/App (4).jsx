@@ -1,13 +1,17 @@
+// App.jsx
+
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../supabaseClient';
 
-const EMPRESA = 'CajasNav';
 const categorias = ['general', 'pedidos', 'quejas', 'facturas'];
 
 function ChatList({ chats, mensajes, onSelectChat, activeId }) {
-  const [filtros, setFiltros] = useState(
-    categorias.reduce((acc, c) => ({ ...acc, [c]: '' }), {})
-  );
+  const [filtros, setFiltros] = useState({
+    general: '',
+    pedidos: '',
+    quejas: '',
+    facturas: '',
+  });
 
   const handleFiltroChange = (cat, value) => {
     setFiltros((prev) => ({ ...prev, [cat]: value }));
@@ -37,16 +41,16 @@ function ChatList({ chats, mensajes, onSelectChat, activeId }) {
                   c.nombre.toLowerCase().includes(filtros[cat].toLowerCase())
               )
               .map((chat) => {
-                const sinLeer = mensajes.filter(
+                const cantidadNoLeidos = mensajes.filter(
                   (m) => m.chat_id === chat.id && m.tipo === 'entrante' && !m.leido
                 ).length;
-                const activo = chat.id === activeId;
+                const estaActivo = chat.id === activeId;
                 return (
                   <li
                     key={chat.id}
                     onClick={() => onSelectChat(chat)}
                     className={`flex items-center justify-between p-2 cursor-pointer border-b border-red-200 ${
-                      activo ? 'bg-red-100' : 'bg-white'
+                      estaActivo ? 'bg-red-100' : 'bg-white'
                     }`}
                   >
                     <div className="flex items-center overflow-hidden">
@@ -60,9 +64,9 @@ function ChatList({ chats, mensajes, onSelectChat, activeId }) {
                         </div>
                       </div>
                     </div>
-                    {sinLeer > 0 && (
+                    {cantidadNoLeidos > 0 && (
                       <span className="bg-red-600 text-white text-xs rounded-full px-2">
-                        {sinLeer}
+                        {cantidadNoLeidos}
                       </span>
                     )}
                   </li>
@@ -76,18 +80,25 @@ function ChatList({ chats, mensajes, onSelectChat, activeId }) {
 }
 
 function ChatWindow({ chat, mensajes, onSendMessage, onChangeCategory, onRenameChat }) {
-  const [nuevo, setNuevo] = useState('');
-  const endRef = useRef(null);
+  const [nuevoMensaje, setNuevoMensaje] = useState('');
+  const chatEndRef = useRef(null);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [mensajes]);
 
-  const submit = (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    if (!nuevo.trim()) return;
-    onSendMessage(nuevo);
-    setNuevo('');
+    if (!nuevoMensaje.trim()) return;
+    onSendMessage(nuevoMensaje);
+    setNuevoMensaje('');
+  };
+
+  const handleRename = () => {
+    const nuevo = prompt('Nuevo nombre de chat:', chat.nombre);
+    if (nuevo && nuevo.trim() && nuevo !== chat.nombre) {
+      onRenameChat(nuevo.trim());
+    }
   };
 
   if (!chat) return <div className="flex-1 bg-green-50" />;
@@ -98,10 +109,7 @@ function ChatWindow({ chat, mensajes, onSendMessage, onChangeCategory, onRenameC
         <span>{chat.nombre}</span>
         <div className="flex items-center space-x-2">
           <button
-            onClick={() => {
-              const nn = prompt('Nuevo nombre:', chat.nombre);
-              if (nn && nn.trim() !== chat.nombre) onRenameChat(nn.trim());
-            }}
+            onClick={handleRename}
             className="p-1 rounded bg-white hover:bg-gray-200 transition"
             title="Cambiar nombre"
           >
@@ -112,55 +120,61 @@ function ChatWindow({ chat, mensajes, onSendMessage, onChangeCategory, onRenameC
             onChange={(e) => onChangeCategory(e.target.value)}
             className="px-2 py-1 border rounded text-sm bg-white"
           >
-            {categorias.map((c) => (
-              <option key={c} value={c}>
-                {c.charAt(0).toUpperCase() + c.slice(1)}
+            {categorias.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat.charAt(0).toUpperCase() + cat.slice(1)}
               </option>
             ))}
           </select>
-          {chat.categoria !== 'general' && (
+          {chat.categoria?.toLowerCase() !== 'general' && (
             <button
               onClick={() => onChangeCategory('general')}
               className="px-3 py-1 bg-red-700 text-white rounded text-sm hover:bg-red-800 transition"
             >
-              Terminar
+              Terminar conversación
             </button>
           )}
         </div>
       </div>
       <div className="flex-1 p-5 overflow-y-auto">
-        {mensajes.map((m, i) => {
-          const hora = new Date(m.timestamp).toLocaleTimeString('es-AR', {
+        {mensajes.map((msg, i) => {
+          const hora = new Date(msg.timestamp).toLocaleTimeString('es-AR', {
             hour: '2-digit',
             minute: '2-digit',
           });
-          const sal = m.tipo === 'saliente';
+          const isSaliente = msg.tipo === 'saliente';
           return (
-            <div key={i} className={`flex ${sal ? 'justify-end' : 'justify-start'} mb-3`}>
+            <div key={i} className={`flex ${isSaliente ? 'justify-end' : 'justify-start'} mb-3`}>
               <div
                 className={`px-4 py-2 rounded-xl max-w-[70%] text-sm shadow ${
-                  sal
+                  isSaliente
                     ? 'bg-yellow-100 text-gray-800'
                     : 'bg-white text-gray-900 border border-green-200'
                 }`}
               >
-                <div>{m.texto}</div>
+                <div>{msg.texto}</div>
                 <div className="text-xs text-right text-gray-500 mt-1">{hora}</div>
               </div>
             </div>
           );
         })}
-        <div ref={endRef} />
+        <div ref={chatEndRef} />
       </div>
-      <form onSubmit={submit} className="flex p-4 bg-white border-t border-green-200 items-center shadow">
+      <form
+        onSubmit={handleSubmit}
+        className="flex p-4 bg-white border-t border-green-200 items-center shadow"
+      >
         <input
           type="text"
-          value={nuevo}
-          onChange={(e) => setNuevo(e.target.value)}
+          value={nuevoMensaje}
+          onChange={(e) => setNuevoMensaje(e.target.value)}
           placeholder="Escribí un mensaje..."
           className="flex-1 px-4 py-2 rounded-full border bg-white shadow text-gray-800 border-gray-300 focus:outline-none focus:ring-2 focus:ring-red-600"
         />
-        <button type="submit" className="ml-3 px-5 py-2 rounded-full bg-red-700 text-white font-bold hover:bg-red-800 transition">
+        <button
+          type="submit"
+          className="ml-3 px-5 py-2 rounded-full bg-red-700 text-white font-bold hover:bg-red-800 transition"
+        >
           Enviar
         </button>
       </form>
@@ -168,77 +182,91 @@ function ChatWindow({ chat, mensajes, onSendMessage, onChangeCategory, onRenameC
   );
 }
 
-export default function App() {
+function App() {
   const [chats, setChats] = useState([]);
   const [mensajes, setMensajes] = useState([]);
-  const [chatSel, setChatSel] = useState(null);
+  const [chatSeleccionado, setChatSeleccionado] = useState(null);
 
-  // Trae solo los chats de CajasNav
   const fetchChats = async () => {
-    const { data, error } = await supabase
-      .from('chats')
-      .select('*')
-      .eq('empresa', EMPRESA);
-    if (error) console.error(error);
-    else setChats(data);
+    const { data } = await supabase.from('chats').select('*');
+    setChats(data || []);
   };
 
-  // Trae solo los mensajes de CajasNav
   const fetchMensajes = async () => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('mensajes')
       .select('*')
-      .eq('empresa', EMPRESA)
       .order('timestamp', { ascending: true });
-    if (error) console.error(error);
-    else setMensajes(data);
+    setMensajes(data || []);
   };
 
   useEffect(() => {
     fetchChats();
     fetchMensajes();
-    const i = setInterval(() => {
+    const interval = setInterval(() => {
       fetchChats();
       fetchMensajes();
     }, 5000);
-    return () => clearInterval(i);
+    return () => clearInterval(interval);
   }, []);
 
   const handleSendMessage = async (texto) => {
     const nuevo = {
-      chat_id: chatSel.id,
+      chat_id: chatSeleccionado.id,
       texto,
       tipo: 'saliente',
       leido: true,
       timestamp: new Date().toISOString(),
-      empresa: EMPRESA,
     };
     await supabase.from('mensajes').insert([nuevo]);
-    fetchMensajes();
-    fetchChats();
+    await fetchMensajes();
+    await fetchChats();
   };
 
-  const handleCategoryChange = async (cat) => {
-    if (!chatSel) return;
-    await supabase.from('chats').update({ categoria: cat }).eq('id', chatSel.id);
-    fetchChats();
-    setChatSel(cat === 'general' ? null : { ...chatSel, categoria: cat });
+  const handleCategoryChange = async (category) => {
+    if (!chatSeleccionado?.id) return;
+    const { error } = await supabase
+      .from('chats')
+      .update({ categoria: category })
+      .eq('id', String(chatSeleccionado.id));
+    if (error) {
+      alert('Error al actualizar la categoría');
+      return;
+    }
+    await fetchChats();
+    if (category === 'general') {
+      setChatSeleccionado(null);
+    } else {
+      setChatSeleccionado((prev) => (prev ? { ...prev, categoria: category } : null));
+    }
   };
 
-  const handleRenameChat = async (nombre) => {
-    if (!chatSel) return;
-    await supabase.from('chats').update({ nombre }).eq('id', chatSel.id);
-    fetchChats();
-    setChatSel((c) => ({ ...c, nombre }));
+  const handleRenameChat = async (nuevoNombre) => {
+    if (!chatSeleccionado?.id) return;
+    const { error } = await supabase
+      .from('chats')
+      .update({ nombre: nuevoNombre })
+      .eq('id', String(chatSeleccionado.id));
+    if (error) {
+      alert('Error al renombrar el chat');
+      return;
+    }
+    await fetchChats();
+    setChatSeleccionado((prev) => (prev ? { ...prev, nombre: nuevoNombre } : null));
   };
 
-  const mensajesDelChat = mensajes.filter((m) => m.chat_id === chatSel?.id);
+  const mensajesDelChat = mensajes.filter((m) => m.chat_id === chatSeleccionado?.id);
 
   return (
     <div className="flex h-screen w-screen font-sans">
-      <ChatList chats={chats} mensajes={mensajes} onSelectChat={setChatSel} activeId={chatSel?.id} />
+      <ChatList
+        chats={chats}
+        mensajes={mensajes}
+        onSelectChat={setChatSeleccionado}
+        activeId={chatSeleccionado?.id}
+      />
       <ChatWindow
-        chat={chatSel}
+        chat={chatSeleccionado}
         mensajes={mensajesDelChat}
         onSendMessage={handleSendMessage}
         onChangeCategory={handleCategoryChange}
@@ -247,3 +275,5 @@ export default function App() {
     </div>
   );
 }
+
+export default App;
