@@ -1,12 +1,24 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../supabaseClient'
+import { subirArchivo } from "../../utils/supabaseUpload"
+import { Paperclip, X, Send } from "lucide-react";
+
+// Convierte '0' (o null / undefined) a 'general' y todo a lowercase
+
 
 /* 🔑 Empresa fija para este build */
 const EMPRESA = 'Consultorio'
-const categorias = ['general', 'turnos', 'recetas', 'preguntas']
+const categorias = ['general', 'recetas', 'preguntas', 'turnos']
+
+const normalizarCategoria = (cat) => {
+  if (cat === 'uno') return 'general'
+  return cat.toString().toLowerCase().trim()
+}
 
 /***************************  LISTA DE CHATS  ***************************/
 function ChatList({ chats, mensajesGlobal, onSelectChat, activeId }) {
+  
+
   const [filtros, setFiltros] = useState(
     categorias.reduce((acc, c) => ({ ...acc, [c]: '' }), {})
   )
@@ -15,6 +27,7 @@ function ChatList({ chats, mensajesGlobal, onSelectChat, activeId }) {
     setFiltros((p) => ({ ...p, [cat]: v }))
 
   return (
+    
     <div className="flex h-full">
       {categorias.map((cat) => (
         <div key={cat} className="w-[200px] min-w-[200px] border-r border-[#e0e0e0]">
@@ -31,11 +44,12 @@ function ChatList({ chats, mensajesGlobal, onSelectChat, activeId }) {
           </div>
           <ul className="list-none p-0 m-0">
             {chats
-              .filter(
-                (c) =>
-                  (c.categoria || '').toLowerCase().trim() === cat &&
-                  c.nombre.toLowerCase().includes(filtros[cat].toLowerCase())
-              )
+              .filter((c) => {
+            // normalizarCategoria already maps '1' → 'general'
+              const categoriaNorm = normalizarCategoria(c.categoria)
+              return categoriaNorm === cat
+                && c.nombre.toLowerCase().includes(filtros[cat].toLowerCase())
+            })
               .map((chat) => {
                 const estaActivo = chat.id === activeId
                 // calculamos con todos los mensajes
@@ -63,7 +77,7 @@ function ChatList({ chats, mensajesGlobal, onSelectChat, activeId }) {
                         </span>
                       </div>
                     </div>
-                    {mostrarBadge && <span className="w-2 h-2 rounded-full bg-red-500 mr-1" />}
+                    {mostrarBadge && <span className="w-3 h-3 rounded-full bg-red-500 mr-1" />}
                   </li>
                 )
               })}
@@ -75,21 +89,71 @@ function ChatList({ chats, mensajesGlobal, onSelectChat, activeId }) {
 }
 
 /***************************  VENTANA DE CHAT  ***************************/
+
+
 function ChatWindow({ chat, mensajes, onSendMessage, onChangeCategory, onRenameChat }) {
   const [nuevoMensaje, setNuevoMensaje] = useState('')
+  const [archivo, setArchivo] = useState(null)
   const bottomRef = useRef(null)
+  const [isAtBottom, setIsAtBottom] = useState(true)
+  const mensajesDivRef = useRef(null)
+
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [mensajes])
+    if (isAtBottom) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [mensajes, isAtBottom])
+
 
   if (!chat) return <div className="flex-1 bg-[#f0f2f5]" />
 
-  const handleSubmit = (e) => {
+  const handleFileChange = (e) => {
+    const file = e.target.files[0]
+    if (file) setArchivo(file)
+  }
+
+  const handleRemoveFile = () => {
+    setArchivo(null)
+  }
+
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!nuevoMensaje.trim()) return
-    onSendMessage(nuevoMensaje)
-    setNuevoMensaje('')
+    if (!nuevoMensaje.trim() && !archivo) return
+
+    if (archivo) {
+      try {
+        const uploadData = await subirArchivo({
+          empresa: chat.empresa || 'Consultorio',
+          chat_id: chat.id,
+          archivo,
+        })
+
+        let tipo = archivo.type.startsWith('image')
+          ? 'imagen'
+          : archivo.type.startsWith('audio')
+          ? 'audio'
+          : 'archivo'
+
+        await onSendMessage({
+          texto: nuevoMensaje,
+          tipo,
+          url: uploadData.url,
+          file_name: uploadData.file_name,
+          mime_type: uploadData.mime_type,
+          file_size: uploadData.file_size,
+        })
+
+        setNuevoMensaje('')
+      } catch (error) {
+        alert('Error subiendo archivo: ' + error.message)
+      }
+    } else if (nuevoMensaje.trim()) {
+      await onSendMessage(nuevoMensaje)
+      setNuevoMensaje('')
+    }
+
+    setArchivo(null)
   }
 
   const handleRename = () => {
@@ -118,14 +182,53 @@ function ChatWindow({ chat, mensajes, onSendMessage, onChangeCategory, onRenameC
           </select>
         </div>
       </div>
-      <div className="flex-1 p-5 overflow-y-auto">
+      <div
+        className="flex-1 p-5 overflow-y-auto"
+        ref={mensajesDivRef}
+        onScroll={() => {
+          const el = mensajesDivRef.current
+          if (!el) return
+          const bottom = Math.abs(el.scrollHeight - el.scrollTop - el.clientHeight) < 2
+          setIsAtBottom(bottom)
+        }}
+      >
+
         {mensajes.map((m) => {
           const hora = new Date(m.timestamp).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
           const saliente = m.tipo === 'saliente'
+          const tipoContenido =
+            m.tipo_contenido ||
+            (m.mime_type && m.mime_type.startsWith('image') && 'imagen') ||
+            (m.mime_type && m.mime_type.startsWith('audio') && 'audio') ||
+            (m.mime_type && m.mime_type.startsWith('video') && 'video') ||
+            m.tipo || 'texto'
+
           return (
             <div key={m.id} className={`flex mb-3 ${saliente ? 'justify-end' : 'justify-start'}`}>
               <div className={`px-4 py-2 rounded-xl max-w-[70%] shadow text-sm ${saliente ? 'bg-[#d2e3fc] text-gray-800' : 'bg-white text-gray-800 border border-[#e0e0e0]'}`}>
-                <div>{m.texto}</div>
+                {/* Imagen */}
+                {tipoContenido === 'imagen' && m.url && (
+                  <img
+                    src={m.url}
+                    alt={m.file_name || 'imagen'}
+                    className="max-w-[220px] max-h-[220px] rounded mb-2 cursor-pointer"
+                    style={{ objectFit: "cover" }}
+                    onClick={() => window.open(m.url, "_blank")}
+                    loading="lazy"
+                  />
+                )}
+                {/* Audio */}
+                {tipoContenido === 'audio' && m.url && (
+                  <audio controls src={m.url} className="mb-2" style={{ width: 200 }} />
+                )}
+                {/* Texto */}
+                {m.texto && <div>{m.texto}</div>}
+                {/* Otro archivo */}
+                {tipoContenido === 'archivo' && m.url && (
+                  <a href={m.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
+                    {m.file_name || "Descargar archivo"}
+                  </a>
+                )}
                 <div className="text-xs text-gray-400 text-right mt-1">{hora}</div>
               </div>
             </div>
@@ -133,20 +236,56 @@ function ChatWindow({ chat, mensajes, onSendMessage, onChangeCategory, onRenameC
         })}
         <div ref={bottomRef} />
       </div>
-      <form onSubmit={handleSubmit} className="flex p-4 bg-white border-t border-[#e0e0e0] items-center">
+      <form
+        onSubmit={handleSubmit}
+        className="flex items-center gap-2 px-4 py-3 border-t border-gray-200 bg-white"
+        style={{ boxShadow: '0 -2px 6px 0 rgba(0,0,0,0.03)' }}
+      >
+        {/* Botón de Adjuntar Archivo */}
+        <label className="cursor-pointer flex items-center p-2 rounded-full hover:bg-gray-100 transition">
+          <Paperclip size={22} className="text-gray-400" />
+          <input
+            type="file"
+            accept="image/*,audio/*"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+        </label>
+
+        {/* Input Mensaje */}
         <input
           value={nuevoMensaje}
           onChange={(e) => setNuevoMensaje(e.target.value)}
           placeholder="Escribí un mensaje..."
-          className="flex-1 px-4 py-2 rounded-full border bg-white shadow text-gray-800 border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          className="flex-1 px-4 py-2 rounded-full border border-gray-200 bg-gray-50 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
+          autoComplete="off"
         />
-        <button type="submit" className="ml-3 px-5 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700">
-          Enviar
+
+        {/* Archivo adjunto (si hay) */}
+        {archivo && (
+          <div className="flex items-center space-x-1 bg-gray-100 rounded-full px-2 py-1 text-xs">
+            <span className="text-gray-700">{archivo.name}</span>
+            <button type="button" onClick={handleRemoveFile} className="text-gray-500 hover:text-red-500">
+              <X size={16} />
+            </button>
+          </div>
+        )}
+
+        {/* Botón Enviar */}
+        <button
+          type="submit"
+          className="ml-2 bg-blue-600 hover:bg-blue-700 rounded-full p-2 flex items-center justify-center transition"
+          style={{ minWidth: 44, minHeight: 44 }}
+          aria-label="Enviar"
+        >
+          <Send size={22} className="text-white" />
         </button>
       </form>
     </div>
   )
 }
+
+
 
 /***************************  APP PRINCIPAL  ***************************/
 export default function App() {
@@ -161,7 +300,9 @@ export default function App() {
       .select('*')
       .eq('empresa', EMPRESA)
     if (error) console.error('fetchChats error:', error)
-    setChats(data || [])
+    setChats(
+    (data || []).map((c) => ({ ...c, categoria: normalizarCategoria(c.categoria) }))
+  )
   }
 
   const fetchAllMensajes = async () => {
@@ -171,7 +312,9 @@ export default function App() {
       .eq('empresa', EMPRESA)
       .order('timestamp', { ascending: true })
     if (error) console.error('fetchAllMensajes error:', error)
-    setMensajesGlobal(data || [])
+  setMensajesGlobal(
+    (data || []).map((m) => ({ ...m, categoria: normalizarCategoria(m.categoria) }))
+  )
   }
 
   /* ---- Efectos ---- */
@@ -190,24 +333,44 @@ export default function App() {
     setChatSeleccionado(chat)
   }
 
-  const handleSendMessage = async (texto) => {
-    if (!chatSeleccionado) return
-    const now = new Date().toISOString()
-    const { error } = await supabase.from('mensajes').insert([
-      {
-        chat_id: chatSeleccionado.id,
-        texto,
-        tipo: 'saliente',
-        enviado: true,
-        timestamp: now,
-        empresa: EMPRESA,
-      },
-    ])
-    if (error) return console.error('insert mensaje error:', error)
-    // refrescar todas las listas
-    await fetchAllMensajes()
-    await fetchChats()
+  const handleSendMessage = async (mensaje) => {
+  if (!chatSeleccionado) return
+  const now = new Date().toISOString()
+    
+  let row
+  if (typeof mensaje === 'string') {
+    // Solo texto
+    row = {
+      chat_id: chatSeleccionado.id,
+      texto: mensaje,
+      tipo: 'saliente', // <- mensaje enviado por vos
+      timestamp: now,
+      empresa: EMPRESA,
+      categoria: normalizarCategoria(chatSeleccionado.categoria),
+    }
+  } else {
+    // Multimedia
+    row = {
+      chat_id: chatSeleccionado.id,
+      texto: mensaje.texto || '',
+      tipo: 'saliente',        // <- así se alinea a la derecha
+      tipo_contenido: mensaje.tipo, // imagen/audio/archivo
+      url: mensaje.url,
+      file_name: mensaje.file_name,
+      mime_type: mensaje.mime_type,
+      file_size: mensaje.file_size,
+
+      timestamp: now,
+      empresa: EMPRESA,
+    }
   }
+
+  const { error } = await supabase.from('mensajes').insert([row])
+  if (error) return console.error('insert mensaje error:', error)
+  await fetchAllMensajes()
+  await fetchChats()
+}
+
 
   const handleCategoryChange = async (category) => {
     if (!chatSeleccionado) return
@@ -228,6 +391,7 @@ export default function App() {
 
   /* ---- Render ---- */
   return (
+    
     <div className="flex h-screen w-screen font-sans bg-[#f0f2f5]">
       <ChatList
         chats={chats}
