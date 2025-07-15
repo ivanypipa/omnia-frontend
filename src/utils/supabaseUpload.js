@@ -1,25 +1,41 @@
 import { supabase } from '../supabaseClient'
 
-const SUPABASE_URL = 'https://lxwkafmogbdfoijrravw.supabase.co' // igual a la de tu client
-
+/**
+ * Sube un archivo (imagen o audio) al bucket "mensajes"
+ * y devuelve la URL pública y metadatos.
+ */
 export async function subirArchivo({ empresa, chat_id, archivo }) {
-  if (!archivo) return null
-  const nombreLimpio = archivo.name.replace(/\s/g, "_")
-  const path = `${empresa}/${chat_id}/${Date.now()}_${nombreLimpio}`
-  const { data, error } = await supabase
+  if (!archivo) return {}
+
+  // Generar nombre único
+  const ext = archivo.name.split('.').pop()
+  const timestamp = Date.now()
+  const fileName = `${timestamp}.${ext}`
+  const path = `${empresa}/${chat_id}/${fileName}`
+
+  // 1) Subir al bucket "mensajes"
+  const { error: uploadError } = await supabase
     .storage
     .from('mensajes')
-    .upload(path, archivo)
+    .upload(path, archivo, { cacheControl: '3600', upsert: false })
 
-  if (error) throw error
+  if (uploadError) throw uploadError
 
-  // Usa la misma URL base
-  const url = `${SUPABASE_URL}/storage/v1/object/public/mensajes/${path}`
+  // 2) Obtener URL pública
+  const {
+    data: { publicUrl },
+    error: urlError,
+  } = supabase
+    .storage
+    .from('mensajes')
+    .getPublicUrl(path)
+
+  if (urlError) throw urlError
 
   return {
-    url,
+    url: publicUrl,
     path,
-    file_name: archivo.name,
+    file_name: fileName,
     mime_type: archivo.type,
     file_size: archivo.size,
   }

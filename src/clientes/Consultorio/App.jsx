@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../supabaseClient'
 import { subirArchivo } from "../../utils/supabaseUpload"
 import { Paperclip, X, Send } from "lucide-react";
+import ContactList from './ContactList';
+
 
 // Convierte '0' (o null / undefined) a 'general' y todo a lowercase
 
@@ -9,6 +11,7 @@ import { Paperclip, X, Send } from "lucide-react";
 /* 🔑 Empresa fija para este build */
 const EMPRESA = 'Consultorio'
 const categorias = ['general', 'recetas', 'preguntas', 'turnos']
+
 
 const normalizarCategoria = (cat) => {
   if (cat === 'uno') return 'general'
@@ -90,36 +93,49 @@ function ChatList({ chats, mensajesGlobal, onSelectChat, activeId }) {
 
 /***************************  VENTANA DE CHAT  ***************************/
 
-
 function ChatWindow({ chat, mensajes, onSendMessage, onChangeCategory, onRenameChat }) {
-  const [nuevoMensaje, setNuevoMensaje] = useState('')
-  const [archivo, setArchivo] = useState(null)
-  const bottomRef = useRef(null)
-  const [isAtBottom, setIsAtBottom] = useState(true)
-  const mensajesDivRef = useRef(null)
-
+  const [nuevoMensaje, setNuevoMensaje] = useState('');
+  const [archivo, setArchivo] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [imgZoom, setImgZoom] = useState(null);
+  const bottomRef = useRef(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const mensajesDivRef = useRef(null);
 
   useEffect(() => {
     if (isAtBottom) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [mensajes, isAtBottom])
-
+  }, [mensajes, isAtBottom]);
 
   if (!chat) return <div className="flex-1 bg-[#f0f2f5]" />
 
+  // Maneja selección de archivo y preview
   const handleFileChange = (e) => {
-    const file = e.target.files[0]
-    if (file) setArchivo(file)
-  }
+    const file = e.target.files[0];
+    if (file) {
+      setArchivo(file);
+      if (file.type.startsWith("image")) {
+        setPreviewUrl(URL.createObjectURL(file));
+      } else {
+        setPreviewUrl(null);
+      }
+    }
+  };
 
+  // Quita archivo y libera preview
   const handleRemoveFile = () => {
-    setArchivo(null)
-  }
+    setArchivo(null);
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+    }
+  };
 
+  // Enviar mensaje o archivo
   const handleSubmit = async (e) => {
-    e.preventDefault()
-    if (!nuevoMensaje.trim() && !archivo) return
+    e.preventDefault();
+    if (!nuevoMensaje.trim() && !archivo) return;
 
     if (archivo) {
       try {
@@ -127,44 +143,44 @@ function ChatWindow({ chat, mensajes, onSendMessage, onChangeCategory, onRenameC
           empresa: chat.empresa || 'Consultorio',
           chat_id: chat.id,
           archivo,
-        })
-
-        let tipo = archivo.type.startsWith('image')
-          ? 'imagen'
-          : archivo.type.startsWith('audio')
-          ? 'audio'
-          : 'archivo'
+        });
 
         await onSendMessage({
           texto: nuevoMensaje,
-          tipo,
+          // tipo: deducido en frontend por mime_type, no se guarda tipo_contenido
           url: uploadData.url,
           file_name: uploadData.file_name,
           mime_type: uploadData.mime_type,
           file_size: uploadData.file_size,
-        })
+        });
 
-        setNuevoMensaje('')
+        setNuevoMensaje('');
       } catch (error) {
-        alert('Error subiendo archivo: ' + error.message)
+        alert('Error subiendo archivo: ' + error.message);
       }
     } else if (nuevoMensaje.trim()) {
-      await onSendMessage(nuevoMensaje)
-      setNuevoMensaje('')
+      await onSendMessage(nuevoMensaje);
+      setNuevoMensaje('');
     }
 
-    setArchivo(null)
-  }
+    setArchivo(null);
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+    }
+  };
 
+  // Editar nombre de chat
   const handleRename = () => {
-    const nuevo = prompt('Nuevo nombre de chat:', chat.nombre)
+    const nuevo = prompt('Nuevo nombre de chat:', chat.nombre);
     if (nuevo && nuevo.trim() && nuevo !== chat.nombre) {
-      onRenameChat(nuevo.trim())
+      onRenameChat(nuevo.trim());
     }
-  }
+  };
 
   return (
     <div className="flex flex-col flex-1 h-screen bg-[#f0f2f5]">
+      {/* Header */}
       <div className="h-12 bg-[#e8f0fe] flex justify-between items-center px-4 border-b border-[#e0e0e0]">
         <span className="font-semibold text-gray-800">{chat.nombre}</span>
         <div className="flex items-center space-x-2">
@@ -182,26 +198,26 @@ function ChatWindow({ chat, mensajes, onSendMessage, onChangeCategory, onRenameC
           </select>
         </div>
       </div>
+
+      {/* Mensajes */}
       <div
         className="flex-1 p-5 overflow-y-auto"
         ref={mensajesDivRef}
         onScroll={() => {
-          const el = mensajesDivRef.current
-          if (!el) return
-          const bottom = Math.abs(el.scrollHeight - el.scrollTop - el.clientHeight) < 2
-          setIsAtBottom(bottom)
+          const el = mensajesDivRef.current;
+          if (!el) return;
+          const bottom = Math.abs(el.scrollHeight - el.scrollTop - el.clientHeight) < 2;
+          setIsAtBottom(bottom);
         }}
       >
-
         {mensajes.map((m) => {
-          const hora = new Date(m.timestamp).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
-          const saliente = m.tipo === 'saliente'
+          const hora = new Date(m.timestamp).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+          const saliente = m.tipo === 'saliente';
           const tipoContenido =
-            m.tipo_contenido ||
             (m.mime_type && m.mime_type.startsWith('image') && 'imagen') ||
             (m.mime_type && m.mime_type.startsWith('audio') && 'audio') ||
             (m.mime_type && m.mime_type.startsWith('video') && 'video') ||
-            m.tipo || 'texto'
+            m.tipo || 'texto';
 
           return (
             <div key={m.id} className={`flex mb-3 ${saliente ? 'justify-end' : 'justify-start'}`}>
@@ -213,10 +229,15 @@ function ChatWindow({ chat, mensajes, onSendMessage, onChangeCategory, onRenameC
                     alt={m.file_name || 'imagen'}
                     className="max-w-[220px] max-h-[220px] rounded mb-2 cursor-pointer"
                     style={{ objectFit: "cover" }}
-                    onClick={() => window.open(m.url, "_blank")}
+                    onClick={() => {
+                      console.log("Click en imagen!", m.url);
+                      setImgZoom(m.url)
+                    }}
                     loading="lazy"
                   />
+                  
                 )}
+                
                 {/* Audio */}
                 {tipoContenido === 'audio' && m.url && (
                   <audio controls src={m.url} className="mb-2" style={{ width: 200 }} />
@@ -232,10 +253,12 @@ function ChatWindow({ chat, mensajes, onSendMessage, onChangeCategory, onRenameC
                 <div className="text-xs text-gray-400 text-right mt-1">{hora}</div>
               </div>
             </div>
-          )
+          );
         })}
         <div ref={bottomRef} />
       </div>
+
+      {/* Formulario de mensaje */}
       <form
         onSubmit={handleSubmit}
         className="flex items-center gap-2 px-4 py-3 border-t border-gray-200 bg-white"
@@ -261,13 +284,34 @@ function ChatWindow({ chat, mensajes, onSendMessage, onChangeCategory, onRenameC
           autoComplete="off"
         />
 
-        {/* Archivo adjunto (si hay) */}
-        {archivo && (
+        {/* Archivo adjunto (solo si NO es imagen) */}
+        {archivo && !previewUrl && (
           <div className="flex items-center space-x-1 bg-gray-100 rounded-full px-2 py-1 text-xs">
             <span className="text-gray-700">{archivo.name}</span>
             <button type="button" onClick={handleRemoveFile} className="text-gray-500 hover:text-red-500">
               <X size={16} />
             </button>
+          </div>
+        )}
+
+        {/* Preview de imagen */}
+        {previewUrl && (
+          <div className="flex items-center">
+            <img
+              src={previewUrl}
+              alt="Preview"
+              className="w-16 h-16 object-cover rounded mr-2 border cursor-pointer"
+              onClick={() => setImgZoom(previewUrl)}
+            />
+            <button
+              type="button"
+              onClick={handleRemoveFile}
+              className="text-gray-500 hover:text-red-500"
+              title="Quitar"
+            >
+              <X size={16} />
+            </button>
+            <span className="ml-2 text-xs text-gray-700">{archivo?.name}</span>
           </div>
         )}
 
@@ -281,10 +325,25 @@ function ChatWindow({ chat, mensajes, onSendMessage, onChangeCategory, onRenameC
           <Send size={22} className="text-white" />
         </button>
       </form>
-    </div>
-  )
-}
 
+      {/* MODAL de zoom para imagen */}
+      {imgZoom && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50"
+          onClick={() => setImgZoom(null)}
+          style={{ cursor: 'zoom-out' }}
+        >
+          <img
+            src={imgZoom}
+            alt="Vista grande"
+            className="max-h-[90vh] max-w-[90vw] rounded shadow-lg"
+            onClick={e => e.stopPropagation()}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
 
 
 /***************************  APP PRINCIPAL  ***************************/
@@ -292,6 +351,7 @@ export default function App() {
   const [chats, setChats] = useState([])
   const [mensajesGlobal, setMensajesGlobal] = useState([])
   const [chatSeleccionado, setChatSeleccionado] = useState(null)
+  const [pestania, setPestania] = useState('chats'); // o 'contactos'
 
   /* ---- Helpers para BD ---- */
   const fetchChats = async () => {
@@ -354,7 +414,6 @@ export default function App() {
       chat_id: chatSeleccionado.id,
       texto: mensaje.texto || '',
       tipo: 'saliente',        // <- así se alinea a la derecha
-      tipo_contenido: mensaje.tipo, // imagen/audio/archivo
       url: mensaje.url,
       file_name: mensaje.file_name,
       mime_type: mensaje.mime_type,
@@ -372,12 +431,21 @@ export default function App() {
 }
 
 
-  const handleCategoryChange = async (category) => {
-    if (!chatSeleccionado) return
-    await supabase.from('chats').update({ categoria: category }).eq('id', chatSeleccionado.id)
-    fetchChats()
-    setChatSeleccionado({ ...chatSeleccionado, categoria: category })
-  }
+ const handleCategoryChange = async (category) => {
+  if (!chatSeleccionado) return;
+  // Actualiza en Supabase
+  await supabase.from('chats').update({ categoria: category }).eq('id', chatSeleccionado.id);
+  // Actualiza localmente el chatSeleccionado (esto fuerza el select a reflejar el cambio)
+  setChatSeleccionado({ ...chatSeleccionado, categoria: category });
+  // Además, actualiza la lista de chats
+  setChats((prev) =>
+    prev.map((c) =>
+      c.id === chatSeleccionado.id ? { ...c, categoria: category } : c
+    )
+  );
+  fetchChats(); // Opcional, por si otro campo cambió
+};
+
 
   const handleRenameChat = async (nuevoNombre) => {
     if (!chatSeleccionado) return
@@ -390,22 +458,72 @@ export default function App() {
   const mensajesChat = mensajesGlobal.filter((m) => m.chat_id === chatSeleccionado?.id)
 
   /* ---- Render ---- */
-  return (
-    
-    <div className="flex h-screen w-screen font-sans bg-[#f0f2f5]">
-      <ChatList
-        chats={chats}
-        mensajesGlobal={mensajesGlobal}
-        onSelectChat={handleSelectChat}
-        activeId={chatSeleccionado?.id}
-      />
-      <ChatWindow
-        chat={chatSeleccionado}
-        mensajes={mensajesChat}
-        onSendMessage={handleSendMessage}
-        onChangeCategory={handleCategoryChange}
-        onRenameChat={handleRenameChat}
-      />
+ return (
+  <div className="min-h-screen w-screen bg-[#f0f2f5] flex flex-col font-sans">
+    {/* Menú/tab arriba, siempre fijo */}
+    <div className="w-full flex justify-center pt-2 pb-2 bg-white border-b border-gray-200 shadow-sm z-10">
+      <div className="flex gap-2">
+        <button
+          className={`
+            px-7 py-1 rounded-t-lg text-base font-medium transition
+            focus:outline-none
+            ${pestania === 'chats'
+              ? 'border-2 border-blue-500 text-blue-600 bg-white shadow-md'
+              : 'border-2 border-transparent text-gray-400 bg-gray-100'}
+          `}
+          onClick={() => setPestania('chats')}
+          style={{ minWidth: 120 }}
+        >
+          Chats
+        </button>
+        <button
+          className={`
+            px-7 py-1 rounded-t-lg text-base font-medium transition
+            focus:outline-none
+            ${pestania === 'contactos'
+              ? 'border-2 border-blue-500 text-blue-600 bg-white shadow-md'
+              : 'border-2 border-transparent text-gray-400 bg-gray-100'}
+          `}
+          onClick={() => setPestania('contactos')}
+          style={{ minWidth: 120 }}
+        >
+          Contactos
+        </button>
+      </div>
     </div>
-  )
+
+    {/* Contenido cambia según la pestaña */}
+    {pestania === 'chats' ? (
+      <div className="flex flex-1 overflow-hidden">
+        <ChatList
+          chats={chats}
+          mensajesGlobal={mensajesGlobal}
+          onSelectChat={handleSelectChat}
+          activeId={chatSeleccionado?.id}
+        />
+        {/* ChatWindow ocupa el resto del espacio */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <ChatWindow
+            chat={chatSeleccionado}
+            mensajes={mensajesChat}
+            onSendMessage={handleSendMessage}
+            onChangeCategory={handleCategoryChange} 
+            onRenameChat={handleRenameChat}
+          />
+        </div>
+      </div>
+    ) : (
+      <div className="flex-1 flex justify-center items-start bg-[#f0f2f5] pt-10 overflow-auto">
+        <ContactList
+          chats={chats}
+          onRenameChat={async (id, nuevoNombre) => {
+            await supabase.from('chats').update({ nombre: nuevoNombre }).eq('id', id);
+            fetchChats();
+          }}
+        />
+      </div>
+    )}
+  </div>
+)
+
 }
