@@ -16,29 +16,19 @@ function ChatList({ chats, mensajesGlobal, onSelectChat, activeId }) {
   const handleFiltroChange = (cat, v) =>
     setFiltros((p) => ({ ...p, [cat]: v }))
 
-  // 1. Agrupar los chats por categoría (ya lo tenés así en el map).
-  // 2. Ordenar los chats por categoría según la regla:
-  //    - "general": último mensaje más NUEVO arriba
-  //    - otras: mensaje más VIEJO arriba
-
-  // Helper para obtener el último o primer mensaje
   const getMsgsForChat = (chatId) => mensajesGlobal.filter((m) => m.chat_id === chatId)
-
   const getUltimoTimestamp = (msgs) =>
     msgs.length ? new Date(msgs[msgs.length - 1].timestamp).getTime() : 0
-
   const getPrimeroTimestamp = (msgs) =>
     msgs.length ? new Date(msgs[0].timestamp).getTime() : 0
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full min-h-0 min-w-0">
       {categorias.map((cat) => {
-        // Filtrar y ordenar los chats según categoría
         let chatsCategoria = chats.filter((c) => (c.categoria === cat) &&
           c.nombre.toLowerCase().includes(filtros[cat].toLowerCase())
         )
 
-        // Ordenar según lo pedido
         chatsCategoria = chatsCategoria
           .map((chat) => {
             const msgs = getMsgsForChat(chat.id)
@@ -51,16 +41,17 @@ function ChatList({ chats, mensajesGlobal, onSelectChat, activeId }) {
           })
           .sort((a, b) => {
             if (cat === 'general') {
-              // Orden descendente por último mensaje (más nuevo arriba)
               return b._ultimoTimestamp - a._ultimoTimestamp
             } else {
-              // Orden ascendente por primer mensaje (más viejo arriba)
               return a._primeroTimestamp - b._primeroTimestamp
             }
           })
 
         return (
-          <div key={cat} className="w-[200px] min-w-[200px] border-r border-[#e0e0e0]">
+          <div
+            key={cat}
+              className="w-[220px] min-w-[200px] max-w-[240px] border-r border-[#e0e0e0] flex flex-col h-full min-h-0 bg-[#f8fafc]"
+          >
             <div className="h-12 flex items-center justify-center font-semibold text-sm text-gray-700 bg-[#e8f0fe] border-b uppercase">
               {cat}
             </div>
@@ -69,40 +60,43 @@ function ChatList({ chats, mensajesGlobal, onSelectChat, activeId }) {
                 value={filtros[cat]}
                 onChange={(e) => handleFiltroChange(cat, e.target.value)}
                 placeholder="Buscar..."
-                className="w-full px-2 py-1 bg-white shadow text-gray-800 border-gray-300"
+                className="w-full px-2 py-1 bg-white shadow text-gray-800 border-gray-300 focus:ring-2 focus:ring-blue-400 transition"
               />
             </div>
-            <ul className="list-none p-0 m-0">
-              {chatsCategoria.map((chat) => {
-                const estaActivo = chat.id === activeId
-                const chatMsgs = getMsgsForChat(chat.id)
-                const ultimo = chatMsgs[chatMsgs.length - 1]
-                const mostrarBadge = !estaActivo && ultimo?.tipo === 'entrante'
+            {/* Scroll independiente */}
+            <div className="flex-1 overflow-y-auto min-h-0 min-w-0 pr-2">
+              <ul className="list-none p-0 m-0">
+                {chatsCategoria.map((chat) => {
+                  const estaActivo = chat.id === activeId
+                  const chatMsgs = getMsgsForChat(chat.id)
+                  const ultimo = chatMsgs[chatMsgs.length - 1]
+                  const mostrarBadge = !estaActivo && ultimo?.tipo === 'entrante'
 
-                return (
-                  <li
-                    key={chat.id}
-                    onClick={() => onSelectChat(chat)}
-                    className={`flex items-center justify-between p-2 cursor-pointer border-b border-[#e0e0e0] ${
-                      estaActivo ? 'bg-blue-100' : 'bg-white'
-                    }`}
-                  >
-                    <div className="flex items-center overflow-hidden">
-                      <div className="w-9 h-9 min-w-[36px] min-h-[36px] rounded-full bg-gray-300 mr-2" />
-                      <div className="flex flex-col justify-center">
-                        <span className="font-semibold text-gray-800 truncate max-w-[120px]">
-                          {chat.nombre}
-                        </span>
-                        <span className="text-xs text-gray-500 truncate max-w-[140px]">
-                          {chat.ultimoMensaje || '\u00A0'}
-                        </span>
+                  return (
+                    <li
+                      key={chat.id}
+                      onClick={() => onSelectChat(chat)}
+                      className={`flex items-center justify-between p-2 cursor-pointer border-b border-[#e0e0e0] ${
+                        estaActivo ? 'bg-blue-100' : 'bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center overflow-hidden">
+                        <div className="w-9 h-9 min-w-[36px] min-h-[36px] rounded-full bg-gray-300 mr-2" />
+                        <div className="flex flex-col justify-center">
+                          <span className="font-semibold text-gray-800 truncate max-w-[120px]">
+                            {chat.nombre}
+                          </span>
+                          <span className="text-xs text-gray-500 truncate max-w-[140px]">
+                            {chat.ultimoMensaje || '\u00A0'}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                    {mostrarBadge && <span className="w-3 h-3 rounded-full bg-red-500 mr-1" />}
-                  </li>
-                )
-              })}
-            </ul>
+                      {mostrarBadge && <span className="w-3 h-3 rounded-full bg-red-500 mr-1" />}
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
           </div>
         )
       })}
@@ -116,25 +110,23 @@ function ChatWindow({ chat, mensajes, onSendMessage, onChangeCategory, onRenameC
   const [archivo, setArchivo] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [imgZoom, setImgZoom] = useState(null);
+  const mensajesDivRef = useRef(null);
   const bottomRef = useRef(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
-  const mensajesDivRef = useRef(null);
 
   function formatearFecha(fechaISO) {
-  const d = new Date(fechaISO);
-  // Formato: DD/MM/YYYY
-  return d.toLocaleDateString('es-AR');
-}
+    const d = new Date(fechaISO);
+    return d.toLocaleDateString('es-AR');
+  }
 
   useEffect(() => {
     if (isAtBottom) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      bottomRef.current?.scrollIntoView({ behavior: 'auto' });
     }
   }, [mensajes, isAtBottom]);
 
   if (!chat) return <div className="flex-1 bg-[#f0f2f5]" />
 
-  // Maneja selección de archivo y preview
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -197,14 +189,14 @@ function ChatWindow({ chat, mensajes, onSendMessage, onChangeCategory, onRenameC
       onRenameChat(nuevo.trim());
     }
   };
+
   let lastDate = null;
   return (
-    <div className="flex flex-col flex-1 h-screen bg-[#f0f2f5]">
+    <div className="flex flex-col flex-1 h-full min-h-0 min-w-0 bg-[#f0f2f5] relative">
       {/* Header */}
       <div className="h-12 bg-[#e8f0fe] flex justify-between items-center px-4 border-b border-[#e0e0e0]">
         <div className="flex flex-col">
           <span className="font-semibold text-gray-800">{chat.nombre}</span>
-          {/* Mostrar número solo cuando se abre el chat */}
           {chat.numero && (
             <span className="text-xs text-gray-500">{chat.numero}</span>
           )}
@@ -225,86 +217,91 @@ function ChatWindow({ chat, mensajes, onSendMessage, onChangeCategory, onRenameC
         </div>
       </div>
 
-      {/* Mensajes */}
+      {/* Mensajes, scroll independiente */}
       <div
-        className="flex-1 p-5 overflow-y-auto"
+        className="flex-1 p-5 pb-32 overflow-y-auto min-h-0 min-w-0"
         ref={mensajesDivRef}
         onScroll={() => {
           const el = mensajesDivRef.current;
           if (!el) return;
-          const bottom = Math.abs(el.scrollHeight - el.scrollTop - el.clientHeight) < 2;
+          const bottom = Math.abs(el.scrollHeight - el.scrollTop - el.clientHeight) < 40;
           setIsAtBottom(bottom);
         }}
+        style={{ boxSizing: "border-box" }}
       >
         {mensajes.map((m, i) => {
-  const hora = new Date(m.timestamp).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
-  const saliente = m.tipo === 'saliente';
-  const tipoContenido =
-    (m.mime_type && m.mime_type.startsWith('image') && 'imagen') ||
-    (m.mime_type && m.mime_type.startsWith('audio') && 'audio') ||
-    (m.mime_type && m.mime_type.startsWith('video') && 'video') ||
-    m.tipo || 'texto';
+          const hora = new Date(m.timestamp).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+          const saliente = m.tipo === 'saliente';
+          const tipoContenido =
+            (m.mime_type && m.mime_type.startsWith('image') && 'imagen') ||
+            (m.mime_type && m.mime_type.startsWith('audio') && 'audio') ||
+            (m.mime_type && m.mime_type.startsWith('video') && 'video') ||
+            m.tipo || 'texto';
 
-  const fechaMsg = formatearFecha(m.timestamp);
-  let mostrarFecha = false;
-  if (fechaMsg !== lastDate) {
-    mostrarFecha = true;
-    lastDate = fechaMsg;
-  }
+          const fechaMsg = formatearFecha(m.timestamp);
+          let mostrarFecha = false;
+          if (fechaMsg !== lastDate) {
+            mostrarFecha = true;
+            lastDate = fechaMsg;
+          }
 
-  return (
-    <div key={m.id}>
-      {/* Separador de fecha */}
-      {mostrarFecha && (
-        <div className="flex justify-center my-4">
-          <span className="bg-gray-300 text-gray-700 px-4 py-1 rounded-full text-xs shadow">
-            {fechaMsg}
-          </span>
-        </div>
-      )}
-
-      <div className={`flex mb-3 ${saliente ? 'justify-end' : 'justify-start'}`}>
-        <div className={`px-4 py-2 rounded-xl max-w-[70%] shadow text-sm ${saliente ? 'bg-[#d2e3fc] text-gray-800' : 'bg-white text-gray-800 border border-[#e0e0e0]'}`}>
-          {/* Imagen */}
-          {tipoContenido === 'imagen' && m.url && (
-            <img
-              src={m.url}
-              alt={m.file_name || 'imagen'}
-              className="max-w-[220px] max-h-[220px] rounded mb-2 cursor-pointer"
-              style={{ objectFit: "cover" }}
-              onClick={() => setImgZoom(m.url)}
-              loading="lazy"
-            />
-          )}
-          {/* Audio */}
-          {tipoContenido === 'audio' && m.url && (
-            <audio controls src={m.url} className="mb-2" style={{ width: 200 }} />
-          )}
-          {/* Texto */}
-          {m.texto && <div>{m.texto}</div>}
-          {/* Otro archivo */}
-          {tipoContenido === 'archivo' && m.url && (
-            <a href={m.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
-              {m.file_name || "Descargar archivo"}
-            </a>
-          )}
-          <div className="text-xs text-gray-400 text-right mt-1">{hora}</div>
-        </div>
-      </div>
-    </div>
-  );
-})}
+          return (
+            <div key={m.id}>
+              {mostrarFecha && (
+                <div className="flex justify-center my-4">
+                  <span className="bg-gray-300 text-gray-700 px-4 py-1 rounded-full text-xs shadow">
+                    {fechaMsg}
+                  </span>
+                </div>
+              )}
+              <div className={`flex mb-3 ${saliente ? 'justify-end' : 'justify-start'}`}>
+                <div className={`px-4 py-2 rounded-xl max-w-[70%] shadow text-sm ${saliente ? 'bg-[#d2e3fc] text-gray-800' : 'bg-white text-gray-800 border border-[#e0e0e0]'}`}>
+                  {/* Imagen */}
+                  {tipoContenido === 'imagen' && m.url && (
+                    <img
+                      src={m.url}
+                      alt={m.file_name || 'imagen'}
+                      className="max-w-[220px] max-h-[220px] rounded mb-2 cursor-pointer"
+                      style={{ objectFit: "cover" }}
+                      onClick={() => setImgZoom(m.url)}
+                      loading="lazy"
+                    />
+                  )}
+                  {/* Audio */}
+                  {tipoContenido === 'audio' && m.url && (
+                    <audio controls src={m.url} className="mb-2" style={{ width: 200 }} />
+                  )}
+                  {/* Texto */}
+                  {m.texto && <div>{m.texto}</div>}
+                  {/* Otro archivo */}
+                  {tipoContenido === 'archivo' && m.url && (
+                    <a href={m.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
+                      {m.file_name || "Descargar archivo"}
+                    </a>
+                  )}
+                  <div className="text-xs text-gray-400 text-right mt-1">{hora}</div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
 
         <div ref={bottomRef} />
       </div>
 
-      {/* Formulario de mensaje */}
+      {/* Input fijo abajo, siempre visible */}
       <form
         onSubmit={handleSubmit}
         className="flex items-center gap-2 px-4 py-3 border-t border-gray-200 bg-white"
-        style={{ boxShadow: '0 -2px 6px 0 rgba(0,0,0,0.03)' }}
+        style={{
+          boxShadow: '0 -2px 6px 0 rgba(0,0,0,0.03)',
+          position: "sticky",
+          bottom: 0,
+          left: 0,
+          zIndex: 20,
+        }}
       >
-        {/* Botón de Adjuntar Archivo */}
+        {/* Adjuntar archivo */}
         <label className="cursor-pointer flex items-center p-2 rounded-full hover:bg-gray-100 transition">
           <Paperclip size={22} className="text-gray-400" />
           <input
@@ -314,8 +311,6 @@ function ChatWindow({ chat, mensajes, onSendMessage, onChangeCategory, onRenameC
             className="hidden"
           />
         </label>
-
-        {/* Input Mensaje */}
         <input
           value={nuevoMensaje}
           onChange={(e) => setNuevoMensaje(e.target.value)}
@@ -323,8 +318,7 @@ function ChatWindow({ chat, mensajes, onSendMessage, onChangeCategory, onRenameC
           className="flex-1 px-4 py-2 rounded-full border border-gray-200 bg-gray-50 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
           autoComplete="off"
         />
-
-        {/* Archivo adjunto (solo si NO es imagen) */}
+        {/* Archivo adjunto (no imagen) */}
         {archivo && !previewUrl && (
           <div className="flex items-center space-x-1 bg-gray-100 rounded-full px-2 py-1 text-xs">
             <span className="text-gray-700">{archivo.name}</span>
@@ -333,8 +327,7 @@ function ChatWindow({ chat, mensajes, onSendMessage, onChangeCategory, onRenameC
             </button>
           </div>
         )}
-
-        {/* Preview de imagen */}
+        {/* Preview imagen */}
         {previewUrl && (
           <div className="flex items-center">
             <img
@@ -354,8 +347,6 @@ function ChatWindow({ chat, mensajes, onSendMessage, onChangeCategory, onRenameC
             <span className="ml-2 text-xs text-gray-700">{archivo?.name}</span>
           </div>
         )}
-
-        {/* Botón Enviar */}
         <button
           type="submit"
           className="ml-2 bg-blue-600 hover:bg-blue-700 rounded-full p-2 flex items-center justify-center transition"
@@ -392,7 +383,6 @@ export default function App() {
   const [chatSeleccionado, setChatSeleccionado] = useState(null)
   const [pestania, setPestania] = useState('chats'); // o 'contactos'
 
-  /* ---- Helpers para BD ---- */
   const fetchChats = async () => {
     const { data, error } = await supabase
       .from('chats')
@@ -412,7 +402,6 @@ export default function App() {
     setMensajesGlobal((data || []).map((m) => ({ ...m, categoria: m.categoria })))
   }
 
-  /* ---- Efectos ---- */
   useEffect(() => {
     fetchChats()
     fetchAllMensajes()
@@ -423,7 +412,6 @@ export default function App() {
     return () => clearInterval(interval)
   }, [])
 
-  /* ---- Acciones ---- */
   const handleSelectChat = (chat) => {
     setChatSeleccionado(chat)
   }
@@ -433,7 +421,6 @@ export default function App() {
     const now = new Date().toISOString()
     let row
     if (typeof mensaje === 'string') {
-      // Solo texto
       row = {
         chat_id: chatSeleccionado.id,
         texto: mensaje,
@@ -443,7 +430,6 @@ export default function App() {
         categoria: chatSeleccionado.categoria,
       }
     } else {
-      // Multimedia
       row = {
         chat_id: chatSeleccionado.id,
         texto: mensaje.texto || '',
@@ -456,7 +442,6 @@ export default function App() {
         empresa: EMPRESA,
       }
     }
-
     const { error } = await supabase.from('mensajes').insert([row])
     if (error) return console.error('insert mensaje error:', error)
     await fetchAllMensajes()
@@ -482,10 +467,8 @@ export default function App() {
     setChatSeleccionado({ ...chatSeleccionado, nombre: nuevoNombre })
   }
 
-  // mensajes filtrados para ventana
   const mensajesChat = mensajesGlobal.filter((m) => m.chat_id === chatSeleccionado?.id)
 
-  /* ---- Render ---- */
   return (
     <div className="min-h-screen w-screen bg-[#f0f2f5] flex flex-col font-sans">
       {/* Menú/tab arriba, siempre fijo */}
@@ -520,17 +503,16 @@ export default function App() {
         </div>
       </div>
 
-      {/* Contenido cambia según la pestaña */}
+      {/* Contenido principal */}
       {pestania === 'chats' ? (
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-1 min-h-0 min-w-0 overflow-hidden">
           <ChatList
             chats={chats}
             mensajesGlobal={mensajesGlobal}
             onSelectChat={handleSelectChat}
             activeId={chatSeleccionado?.id}
           />
-          {/* ChatWindow ocupa el resto del espacio */}
-          <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
             <ChatWindow
               chat={chatSeleccionado}
               mensajes={mensajesChat}
